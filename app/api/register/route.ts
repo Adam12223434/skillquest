@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { hash } from "bcrypt";
+import { Role } from "@prisma/client";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
@@ -46,6 +47,7 @@ export async function POST(request: Request) {
         name,
         email,
         password: hashedPassword,
+        role: Role.STUDENT,
       },
     });
 

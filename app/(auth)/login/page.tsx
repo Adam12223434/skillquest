@@ -37,7 +37,8 @@ export default function LoginPage() {
       return;
     }
 
-    router.push("/dashboard");
+    router.replace("/dashboard");
+    router.refresh();
   }
 
   return (
@@ -78,6 +79,7 @@ export default function LoginPage() {
           <Button
             className="w-full"
             disabled={loading}
+            type="submit"
           >
             {loading ? "Signing in..." : "Login"}
           </Button>
