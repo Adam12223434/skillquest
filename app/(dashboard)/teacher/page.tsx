@@ -35,6 +35,87 @@ export default async function TeacherDashboardPage() {
   const courses = await prisma.course.findMany({
     where: { teacherId: session.user.id },
     orderBy: { createdAt: "desc" },
+    include: {
+      lessons: true,
+      enrollments: true,
+    },
+  });
+
+  const courseIds = courses.map((course) => course.id);
+
+  const [enrollmentCounts, allLessons] = await Promise.all([
+    prisma.enrollment.groupBy({
+      by: ["courseId"],
+      where: { courseId: { in: courseIds } },
+      _count: { _all: true },
+    }),
+    prisma.lesson.findMany({
+      where: { courseId: { in: courseIds } },
+      select: { id: true, courseId: true },
+    }),
+  ]);
+
+  const lessonIds = allLessons.map((l) => l.id);
+  const allProgress = await prisma.lessonProgress.findMany({
+    where: {
+      lessonId: { in: lessonIds },
+      completed: true,
+    },
+  });
+
+  const enrollmentMap = new Map(
+    enrollmentCounts.map((item) => [item.courseId, item._count._all])
+  );
+
+  const lessonToCourseMap = new Map(allLessons.map((l) => [l.id, l.courseId]));
+
+  const userCompletedCountByCourse = new Map<string, Map<string, number>>();
+
+  for (const record of allProgress) {
+    const courseId = lessonToCourseMap.get(record.lessonId);
+    if (!courseId) continue;
+
+    const userMap = userCompletedCountByCourse.get(courseId) ?? new Map();
+    userMap.set(
+      record.userId,
+      (userMap.get(record.userId) ?? 0) + 1
+    );
+    userCompletedCountByCourse.set(courseId, userMap);
+  }
+
+  const completedStudentCounts = new Map<string, number>();
+
+  for (const course of courses) {
+    const userMap = userCompletedCountByCourse.get(course.id) ?? new Map();
+    const totalLessons = course.lessons.length;
+    let completedCount = 0;
+
+    for (const completed of userMap.values()) {
+      if (completed >= totalLessons && totalLessons > 0) {
+        completedCount++;
+      }
+    }
+
+    completedStudentCounts.set(course.id, completedCount);
+  }
+
+  const coursesWithStats = courses.map((course) => {
+    const totalEnrollments = enrollmentMap.get(course.id) ?? 0;
+    const completedStudents = completedStudentCounts.get(course.id) ?? 0;
+    const completionPercentage = totalEnrollments === 0
+      ? 0
+      : Math.round((completedStudents / totalEnrollments) * 100);
+
+    return {
+      id: course.id,
+      title: course.title,
+      description: course.description,
+      published: course.published,
+      createdAt: dateFormatter.format(course.createdAt),
+      totalEnrollments,
+      completedStudents,
+      completionPercentage,
+    };
   });
 
   return (
@@ -83,17 +164,8 @@ export default async function TeacherDashboardPage() {
             aria-label="Your courses"
             className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
           >
-            {courses.map((course) => (
-              <CourseCard
-                key={course.id}
-                course={{
-                  id: course.id,
-                  title: course.title,
-                  description: course.description,
-                  published: course.published,
-                  createdAt: dateFormatter.format(course.createdAt),
-                }}
-              />
+            {coursesWithStats.map((course) => (
+              <CourseCard key={course.id} course={course} />
             ))}
           </section>
         )}

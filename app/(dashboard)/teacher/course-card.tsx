@@ -21,6 +21,9 @@ type CourseCardProps = {
     description: string;
     published: boolean;
     createdAt: string;
+    totalEnrollments: number;
+    completedStudents: number;
+    completionPercentage: number;
   };
 };
 
@@ -72,8 +75,18 @@ export function CourseCard({ course }: CourseCardProps) {
           </span>
         </div>
       </CardHeader>
-      <CardContent className="flex-1">
+      <CardContent className="flex-1 space-y-3">
         <p className="text-muted-foreground">{course.description}</p>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full bg-primary transition-all"
+            style={{ width: `${course.completionPercentage}%` }}
+          />
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {course.totalEnrollments} enrolled • {course.completedStudents} completed •{" "}
+          {course.completionPercentage}% completion
+        </p>
       </CardContent>
       <CardFooter className="flex-col items-start gap-4">
         <p className="text-xs text-muted-foreground">

@@ -3,6 +3,7 @@ import { Role } from "@prisma/client";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -11,6 +12,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
+import { getCourseProgress } from "@/lib/lesson-progress";
+import Link from "next/link";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -35,11 +38,27 @@ export default async function MyCoursesPage() {
           teacher: {
             select: { name: true },
           },
+          lessons: { orderBy: { position: "asc" } },
         },
       },
     },
     orderBy: { enrolledAt: "desc" },
   });
+
+  const coursesWithProgress = await Promise.all(
+    enrollments.map(async ({ course, enrolledAt }) => {
+      const progress = await prisma.lessonProgress.findMany({
+        where: {
+          userId: session.user.id,
+          lesson: { courseId: course.id },
+        },
+      });
+
+      const stats = getCourseProgress(course.lessons, progress);
+
+      return { course, enrolledAt, stats };
+    })
+  );
 
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-8 sm:px-6 lg:px-8">
@@ -67,7 +86,7 @@ export default async function MyCoursesPage() {
             aria-label="Enrolled courses"
             className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
           >
-            {enrollments.map(({ course, enrolledAt }) => (
+            {coursesWithProgress.map(({ course, enrolledAt, stats }) => (
               <Card key={course.id} className="h-full">
                 {course.imageUrl ? (
                   <Image
@@ -84,20 +103,37 @@ export default async function MyCoursesPage() {
                   </div>
                 )}
                 <CardHeader>
-                  <CardTitle>{course.title}</CardTitle>
+                  <div className="flex items-start justify-between gap-3">
+                    <CardTitle>{course.title}</CardTitle>
+                    <span className="text-sm font-medium text-primary">
+                      {stats.percentage}%
+                    </span>
+                  </div>
                   <p className="text-sm text-muted-foreground">
                     By {course.teacher.name ?? "SkillQuest Teacher"}
                   </p>
                 </CardHeader>
-                <CardContent className="flex-1">
+                <CardContent className="flex-1 space-y-3">
                   <p className="line-clamp-3 text-muted-foreground">
                     {course.description}
                   </p>
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                    <div
+                      className="h-full bg-primary transition-all"
+                      style={{ width: `${stats.percentage}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {stats.completed} / {stats.total} lessons completed
+                  </p>
                 </CardContent>
-                <CardFooter>
+                <CardFooter className="flex-col items-start gap-3">
                   <p className="text-xs text-muted-foreground">
                     Enrolled {dateFormatter.format(enrolledAt)}
                   </p>
+                  <Button asChild size="sm" className="w-full">
+                    <Link href={`/courses/${course.id}`}>Continue Learning</Link>
+                  </Button>
                 </CardFooter>
               </Card>
             ))}

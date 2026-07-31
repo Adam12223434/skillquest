@@ -1,7 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Role } from "@prisma/client";
+import { LessonProgress, Role } from "@prisma/client";
 
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/card";
 import { prisma } from "@/lib/prisma";
 import { EnrollmentButton } from "./enrollment-button";
+import { getCourseProgress } from "@/lib/lesson-progress";
 
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -36,11 +37,16 @@ export default async function CourseDetailsPage({
       teacher: {
         select: { id: true, name: true },
       },
+      lessons: { orderBy: { position: "asc" } },
     },
   });
 
-  const isOwner = session?.user?.id === course?.teacherId;
-  const isAdmin = session?.user?.role === Role.ADMIN;
+  if (!session?.user?.id) {
+    notFound();
+  }
+
+  const isOwner = session.user.id === course?.teacherId;
+  const isAdmin = session.user.role === Role.ADMIN;
 
   if (!course || (!course.published && !isOwner && !isAdmin)) {
     notFound();
@@ -58,9 +64,38 @@ export default async function CourseDetailsPage({
         })
       : null;
 
+  let progress = null;
+  let lessonProgress: LessonProgress[] = [];
+
+  if (enrollment) {
+    lessonProgress = await prisma.lessonProgress.findMany({
+      where: {
+        userId: session.user.id,
+        lesson: { courseId: course.id },
+      },
+    });
+
+    progress = getCourseProgress(course.lessons, lessonProgress);
+  }
+
+  const firstIncompleteLesson = enrollment
+    ? course.lessons.find((lesson) => {
+        const isComplete = lessonProgress.some(
+          (p) => p.lessonId === lesson.id && p.completed
+        );
+        return !isComplete;
+      })
+    : null;
+
+  const continueHref = firstIncompleteLesson
+    ? `/courses/${course.id}/lessons/${firstIncompleteLesson.id}`
+    : enrollment && course.lessons.length > 0
+      ? `/courses/${course.id}/lessons/${course.lessons[0].id}`
+      : undefined;
+
   return (
     <main className="min-h-screen bg-muted/30 px-4 py-8 sm:px-6 lg:px-8">
-      <article className="mx-auto max-w-3xl">
+      <article className="mx-auto max-w-3xl space-y-6">
         <Card>
           {course.imageUrl ? (
             <Image
@@ -89,6 +124,56 @@ export default async function CourseDetailsPage({
             <p className="text-sm text-muted-foreground">
               Created {dateFormatter.format(course.createdAt)}
             </p>
+
+            {enrollment && progress && (
+              <div className="space-y-2">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Progress</span>
+                  <span className="text-muted-foreground">
+                    {progress.completed} / {progress.total} lessons completed
+                  </span>
+                </div>
+                <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                  <div
+                    className="h-full bg-primary transition-all"
+                    style={{ width: `${progress.percentage}%` }}
+                  />
+                </div>
+              </div>
+            )}
+
+            {enrollment && (
+              <div className="space-y-3">
+                <h3 className="text-lg font-semibold">Lessons</h3>
+                <div className="space-y-2">
+                  {course.lessons.map((lesson) => {
+                    const isComplete = lessonProgress.some(
+                      (p) => p.lessonId === lesson.id && p.completed
+                    );
+                    return (
+                      <Link
+                        key={lesson.id}
+                        href={`/courses/${course.id}/lessons/${lesson.id}`}
+                        className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/50"
+                      >
+                        <span className="font-medium">
+                          {lesson.position}. {lesson.title}
+                        </span>
+                        {isComplete ? (
+                          <span className="text-sm text-green-600">
+                            ✓ Completed
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">
+                            Not started
+                          </span>
+                        )}
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </CardContent>
           <CardFooter>
             {!session?.user ? (
@@ -99,7 +184,9 @@ export default async function CourseDetailsPage({
               </Button>
             ) : session.user.role === Role.STUDENT ? (
               enrollment ? (
-                <Button>Continue Learning</Button>
+                <Button asChild>
+                  <Link href={continueHref ?? "#"}>Continue Learning</Link>
+                </Button>
               ) : (
                 <EnrollmentButton courseId={course.id} />
               )
