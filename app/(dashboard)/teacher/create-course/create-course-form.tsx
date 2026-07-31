@@ -11,53 +11,71 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const createCourseSchema = z.object({
+const courseFormSchema = z.object({
   title: z.string().min(3, "Title must be at least 3 characters."),
   description: z
     .string()
     .min(10, "Description must be at least 10 characters."),
   imageUrl: z.string().url("Image URL must be valid.").optional().or(z.literal("")),
+  published: z.boolean(),
 });
 
-type CreateCourseFormValues = z.infer<typeof createCourseSchema>;
+type CourseFormValues = z.infer<typeof courseFormSchema>;
 
-export function CreateCourseForm() {
+type CourseFormProps = {
+  courseId?: string;
+  defaultValues?: CourseFormValues;
+};
+
+export function CreateCourseForm({ courseId, defaultValues }: CourseFormProps) {
   const router = useRouter();
+  const isEditing = Boolean(courseId);
   const {
     register,
     handleSubmit,
     formState: { errors, isSubmitting },
-  } = useForm<CreateCourseFormValues>({
-    resolver: zodResolver(createCourseSchema),
+  } = useForm<CourseFormValues>({
+    resolver: zodResolver(courseFormSchema),
     defaultValues: {
       title: "",
       description: "",
       imageUrl: "",
+      published: false,
+      ...defaultValues,
     },
   });
 
-  async function onSubmit(values: CreateCourseFormValues) {
+  async function onSubmit(values: CourseFormValues) {
     try {
-      const response = await fetch("/api/courses", {
-        method: "POST",
+      const response = await fetch(courseId ? `/api/courses/${courseId}` : "/api/courses", {
+        method: isEditing ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...values,
-          imageUrl: values.imageUrl || undefined,
+          ...(isEditing ? values : { title: values.title, description: values.description }),
+          imageUrl: values.imageUrl || (isEditing ? null : undefined),
         }),
       });
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
-        throw new Error(data?.error ?? "Unable to create the course.");
+        throw new Error(
+          data?.error ??
+            (isEditing ? "Unable to update the course." : "Unable to create the course.")
+        );
       }
 
-      toast.success("Course created successfully.");
+      toast.success(
+        isEditing ? "Course updated successfully." : "Course created successfully."
+      );
       router.push("/teacher");
       router.refresh();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Unable to create the course."
+        error instanceof Error
+          ? error.message
+          : isEditing
+            ? "Unable to update the course."
+            : "Unable to create the course."
       );
     }
   }
@@ -116,8 +134,27 @@ export function CreateCourseForm() {
             )}
           </div>
 
+          {isEditing && (
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              <input
+                id="published"
+                type="checkbox"
+                disabled={isSubmitting}
+                className="size-4 rounded border-input"
+                {...register("published")}
+              />
+              <Label htmlFor="published">Publish this course</Label>
+            </div>
+          )}
+
           <Button className="w-full sm:w-auto" disabled={isSubmitting} type="submit">
-            {isSubmitting ? "Creating Course..." : "Create Course"}
+            {isSubmitting
+              ? isEditing
+                ? "Saving Course..."
+                : "Creating Course..."
+              : isEditing
+                ? "Save Changes"
+                : "Create Course"}
           </Button>
         </form>
       </CardContent>

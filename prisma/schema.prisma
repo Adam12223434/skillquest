@@ -29,6 +29,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   courses       Course[]
+  enrollments   Enrollment[]
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -79,8 +80,40 @@ model Course {
   published   Boolean  @default(false)
   teacherId   String
   teacher     User     @relation(fields: [teacherId], references: [id])
+  enrollments Enrollment[]
+  lessons     Lesson[]
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   @@index([teacherId])
+}
+
+model Enrollment {
+  id         String   @id @default(cuid())
+  userId     String
+  courseId   String
+  enrolledAt DateTime @default(now())
+
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, courseId])
+  @@index([courseId])
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  content     String?  @db.Text
+  videoUrl    String?
+  position    Int
+  isPublished Boolean  @default(false)
+  courseId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@index([courseId, position])
 }

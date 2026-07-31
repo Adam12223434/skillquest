@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { Button } from "@/components/ui/button";
+import { CourseCard } from "./course-card";
 import {
   Card,
   CardContent,
@@ -83,30 +84,16 @@ export default async function TeacherDashboardPage() {
             className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3"
           >
             {courses.map((course) => (
-              <Card key={course.id} className="h-full">
-                <CardHeader>
-                  <div className="flex items-start justify-between gap-3">
-                    <CardTitle>{course.title}</CardTitle>
-                    <span
-                      className={
-                        course.published
-                          ? "rounded-full bg-green-100 px-2.5 py-1 text-xs font-medium text-green-700"
-                          : "rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700"
-                      }
-                    >
-                      {course.published ? "Published" : "Draft"}
-                    </span>
-                  </div>
-                </CardHeader>
-                <CardContent className="flex-1">
-                  <p className="text-muted-foreground">{course.description}</p>
-                </CardContent>
-                <CardFooter>
-                  <p className="text-xs text-muted-foreground">
-                    Created {dateFormatter.format(course.createdAt)}
-                  </p>
-                </CardFooter>
-              </Card>
+              <CourseCard
+                key={course.id}
+                course={{
+                  id: course.id,
+                  title: course.title,
+                  description: course.description,
+                  published: course.published,
+                  createdAt: dateFormatter.format(course.createdAt),
+                }}
+              />
             ))}
           </section>
         )}
