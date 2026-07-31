@@ -16,7 +16,7 @@ const lessonFormSchema = z.object({
   description: z.string(),
   content: z.string(),
   videoUrl: z.string().url("Video URL must be valid.").or(z.literal("")),
-  position: z.coerce.number().int().min(1, "Position must be at least 1."),
+  position: z.number().int().min(1, "Position must be at least 1."),
   isPublished: z.boolean(),
 });
 
@@ -108,7 +108,14 @@ export function LessonForm({ courseId, lessonId, defaultValues }: LessonFormProp
           </div>
           <div className="space-y-2">
             <Label htmlFor="position">Position</Label>
-            <Input aria-invalid={Boolean(errors.position)} disabled={isSubmitting} id="position" min={1} type="number" {...register("position")} />
+            <Input
+  aria-invalid={Boolean(errors.position)}
+  disabled={isSubmitting}
+  id="position"
+  min={1}
+  type="number"
+  {...register("position", { valueAsNumber: true })}
+/>
             {errors.position && <p className="text-sm text-destructive">{errors.position.message}</p>}
           </div>
           {isEditing && (
